@@ -1,0 +1,167 @@
+services:
+  # grafana:
+  #   image: grafana/grafana
+  #   container_name: grafana
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.5
+  #   volumes:
+  #     - ./grafana/grafana-datasource-config.yaml:/etc/grafana/provisioning/datasources/datasource.yaml
+  #
+  # prometheus:
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.7
+  #   volumes:
+  #     - ./prometheus/:/etc/prometheus/
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #   ports:
+  #     - 9090:9090
+
+  # mysql-exporter:
+  #   image: prom/mysqld-exporter
+  #   container_name: mysql-exporter
+  #   hostname: mysql-exporter
+  #   command:
+  #    - --config.my-cnf=/cfg/.my.cnf
+  #    - --mysqld.address=192.168.0.10:3306
+  #   volumes:
+  #     - ./mysql/config.my-cnf:/cfg/.my.cnf
+  #   ports:
+  #     - 9104:9104
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.13
+  #
+  # cadvisor:
+  #     image: gcr.io/cadvisor/cadvisor:latest
+  #     container_name: cadvisor
+  #     hostname: cadvisor
+  #     platform: linux/aarch64
+  #     volumes:
+  #       - "/:/rootfs:ro"
+  #       - "/var/run:/var/run:ro"
+  #       - "/sys:/sys:ro"
+  #       - "/var/lib/docker/:/var/lib/docker:ro"
+  #       - "/dev/disk/:/dev/disk:ro"
+  #     ports:
+  #       - "8080:8080"
+  #     networks:
+  #       cluster:
+  #         ipv4_address: 192.168.0.6
+  #
+
+  management1:
+    image: mysql/mysql-cluster
+    container_name: management1
+    command: ndb_mgmd
+    networks:
+      cluster:
+        ipv4_address: 192.168.0.2
+
+  ndb1:
+    image: mysql/mysql-cluster
+    container_name: ndb1
+    command: ndbd
+    networks:
+      cluster:
+        ipv4_address: 192.168.0.3
+
+  ndb2:
+    image: mysql/mysql-cluster
+    container_name: ndb2
+    command: ndbd
+    networks:
+      cluster:
+        ipv4_address: 192.168.0.4
+
+  mysql1:
+    image: mysql/mysql-cluster
+    container_name: mysql1
+      #entrypoint:
+      #- "mysql -u root -pnicolas db < /sql_script.sql"
+    command: mysqld --default-authentication-plugin=mysql_native_password
+    ports: 
+      - 3307:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: nicolas
+      MYSQL_DATABASE: db
+    networks:
+      cluster:
+        ipv4_address: 192.168.0.10
+    #volumes:
+      #- ./mysql/sql_dump.sql:/docker-entrypoint-initdb.d/sql_dump.sql
+      #- ./mysql/privileges.sql:/docker-entrypoint-initdb.d/privileges.sql
+      #- ./mysql/my.cnf/my.cnf:/etc/mysql/conf.d/my.cnf
+
+
+  # sb-prepare:
+  #   image: severalnines/sysbench
+  #   container_name: sb-prepare
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.15
+  #   command: >
+  #     sysbench
+  #     --db-driver=mysql
+  #     --oltp-table-size=1000
+  #     --oltp-tables-count=24
+  #     --threads=1
+  #     --mysql-host=192.168.0.10
+  #     --mysql-port=3306
+  #     --mysql-user=root
+  #     --mysql-password=nicolas
+  #     /usr/share/sysbench/tests/include/oltp_legacy/parallel_prepare.lua run
+  #   depends_on:
+  #     - mysql1
+
+  # sb-run:
+  #   image: severalnines/sysbench
+  #   container_name: sb-run
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.16
+  #   command: >
+  #     sysbench
+  #     --db-driver=mysql
+  #     --report-interval=2
+  #     --mysql-table-engine=innodb
+  #     --oltp-table-size=1000
+  #     --oltp-tables-count=24
+  #     --threads=64
+  #     --time=99999
+  #     --mysql-host=192.168.0.10
+  #     --mysql-port=3306
+  #     --mysql-user=root
+  #     --mysql-password=nicolas
+  #     /usr/share/sysbench/tests/include/oltp_legacy/oltp.lua run
+  #   depends_on:
+  #     - mysql1
+  #     - sb-prepare
+
+  # phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: phpmyadmin
+  #   environment:
+  #     PMA_HOST: mysql1
+  #     MYSQL_ROOT_PASSWORD: nicolas
+  #   depends_on:
+  #     - mysql1
+  #   ports:
+  #     - "8081:80"
+  #   networks:
+  #     cluster:
+  #       ipv4_address: 192.168.0.12
+
+
+networks:
+  cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.0.0/24
